@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Q ➔ F Klavye Çevirici</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: #fafafa;
+      color: #171717;
+      display: flex;
+      justify-content: center;
+      padding: 50px 20px;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 640px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 4px;
+    }
+
+    h1 {
+      font-size: 22px;
+      font-weight: 700;
+      color: #111;
+      letter-spacing: -0.01em;
+    }
+
+    p {
+      font-size: 14px;
+      color: #666;
+      margin-top: 4px;
+    }
+
+    .timer-badge {
+      font-size: 15px;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      color: #171717;
+      background: #f0f0f0;
+      padding: 6px 12px;
+      border-radius: 6px;
+      border: 1px solid #e0e0e0;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+
+    .timer-badge.active {
+      background: #e0f2fe;
+      border-color: #7dd3fc;
+      color: #0369a1;
+    }
+
+    .timer-badge.ended {
+      background: #fee2e2;
+      border-color: #fca5a5;
+      color: #b91c1c;
+      font-weight: 700;
+    }
+
+    textarea {
+      width: 100%;
+      height: 220px;
+      padding: 14px 16px;
+      font-size: 16px;
+      font-family: inherit;
+      line-height: 1.6;
+      border: 1px solid #d4d4d4;
+      border-radius: 8px;
+      outline: none;
+      resize: vertical;
+      background: #ffffff;
+      color: #111;
+      transition: border-color 0.15s, background-color 0.15s;
+    }
+
+    textarea:focus {
+      border-color: #171717;
+    }
+
+    textarea:disabled, textarea[readonly] {
+      background-color: #f5f5f5;
+      cursor: not-allowed;
+    }
+
+    textarea::placeholder {
+      color: #a3a3a3;
+    }
+
+    .controls {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .btn-group {
+      display: flex;
+      gap: 8px;
+    }
+
+    button {
+      background: #ffffff;
+      border: 1px solid #d4d4d4;
+      color: #171717;
+      padding: 7px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.15s, border-color 0.15s;
+    }
+
+    button:hover {
+      background: #f5f5f5;
+      border-color: #a3a3a3;
+    }
+
+    button.primary {
+      background: #171717;
+      border-color: #171717;
+      color: #ffffff;
+    }
+
+    button.primary:hover {
+      background: #333333;
+    }
+
+    .counter {
+      font-size: 13px;
+      color: #737373;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <header>
+      <div>
+        <h1>Q ➔ F Klavye</h1>
+        <p>Klavyenizdeki tuşlara basın, doğrudan F klavye karşılığı yazılsın (Q basınca F yazar).</p>
+      </div>
+      <div class="timer-badge" id="timerBadge">⏱️ 05:00</div>
+    </header>
+
+    <textarea 
+      id="inputArea" 
+      placeholder="Yazmaya başladığınız anda 5 dakikalık süre başlar..." 
+      autofocus 
+      spellcheck="false"
+    ></textarea>
+
+    <div class="controls">
+      <div class="btn-group">
+        <button class="primary" id="copyBtn">Kopyala</button>
+        <button id="clearBtn">Temizle & Sıfırla</button>
+        <button id="soundToggleBtn">🔊 Ses Açık</button>
+      </div>
+      <div class="counter" id="charCount">0 karakter</div>
+    </div>
+  </div>
+
+  <script>
+    // --- Ses Efektleri (Web Audio API) ---
+    let audioCtx = null;
+    let soundEnabled = true;
+
+    function getAudioContext() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+      return audioCtx;
+    }
+
+    function playKeySound() {
+      if (!soundEnabled) return;
+      try {
+        const ctx = getAudioContext();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(340 + Math.random() * 80, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(70, ctx.currentTime + 0.04);
+
+        gain.gain.setValueAtTime(0.14, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.04);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc.start();
+        osc.stop(ctx.currentTime + 0.045);
+      } catch (e) {}
+    }
+
+    // Süre bitince çalan hafif zil sesi
+    function playAlarmSound() {
+      try {
+        const ctx = getAudioContext();
+        const now = ctx.currentTime;
+        [523.25, 659.25, 783.99].forEach((freq, idx) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, now + idx * 0.15);
+          gain.gain.setValueAtTime(0.2, now + idx * 0.15);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.15 + 0.4);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(now + idx * 0.15);
+          osc.stop(now + idx * 0.15 + 0.45);
+        });
+      } catch (e) {}
+    }
+
+    // --- Zamanlayıcı (5 Dakika) ---
+    const TOTAL_SECONDS = 5 * 60; // 300 saniye
+    let remainingSeconds = TOTAL_SECONDS;
+    let timerInterval = null;
+    let timerStarted = false;
+    let isTimeUp = false;
+
+    const timerBadge = document.getElementById('timerBadge');
+
+    function formatTime(sec) {
+      const m = Math.floor(sec / 60);
+      const s = sec % 60;
+      return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    }
+
+    function startTimerIfNeeded() {
+      if (timerStarted || isTimeUp) return;
+      timerStarted = true;
+      timerBadge.classList.add('active');
+
+      timerInterval = setInterval(() => {
+        remainingSeconds--;
+        if (remainingSeconds <= 0) {
+          clearInterval(timerInterval);
+          remainingSeconds = 0;
+          isTimeUp = true;
+          timerBadge.classList.remove('active');
+          timerBadge.classList.add('ended');
+          timerBadge.textContent = '⏰ Süre bitti!';
+          textarea.readOnly = true;
+          playAlarmSound();
+        } else {
+          timerBadge.textContent = `⏱️ ${formatTime(remainingSeconds)}`;
+        }
+      }, 1000);
+    }
+
+    function resetTimer() {
+      if (timerInterval) clearInterval(timerInterval);
+      timerInterval = null;
+      timerStarted = false;
+      isTimeUp = false;
+      remainingSeconds = TOTAL_SECONDS;
+      textarea.readOnly = false;
+      timerBadge.className = 'timer-badge';
+      timerBadge.textContent = `⏱️ ${formatTime(TOTAL_SECONDS)}`;
+    }
+
+    // --- Q -> F Tuş Eşleştirmesi ---
+    const KEY_MAP = {
+      // 1. Sıra (Rakamlar)
+      'Backquote': { normal: '+', shift: '*' },
+      'Digit1': { normal: '1', shift: '!' },
+      'Digit2': { normal: '2', shift: '"' },
+      'Digit3': { normal: '3', shift: '^' },
+      'Digit4': { normal: '4', shift: '$' },
+      'Digit5': { normal: '5', shift: '%' },
+      'Digit6': { normal: '6', shift: "'" },
+      'Digit7': { normal: '7', shift: '(' },
+      'Digit8': { normal: '8', shift: ')' },
+      'Digit9': { normal: '9', shift: '=' },
+      'Digit0': { normal: '0', shift: '?' },
+      'Minus': { normal: '/', shift: '_' },
+      'Equal': { normal: '-', shift: '?' },
+
+      // 2. Sıra (Harfler)
+      'KeyQ': { normal: 'f', shift: 'F' },
+      'KeyW': { normal: 'g', shift: 'G' },
+      'KeyE': { normal: 'ğ', shift: 'Ğ' },
+      'KeyR': { normal: 'ı', shift: 'I' },
+      'KeyT': { normal: 'o', shift: 'O' },
+      'KeyY': { normal: 'd', shift: 'D' },
+      'KeyU': { normal: 'r', shift: 'R' },
+      'KeyI': { normal: 'n', shift: 'N' },
+      'KeyO': { normal: 'h', shift: 'H' },
+      'KeyP': { normal: 'p', shift: 'P' },
+      'BracketLeft': { normal: 'q', shift: 'Q' },
+      'BracketRight': { normal: 'w', shift: 'W' },
+
+      // 3. Sıra (Temel Sıra)
+      'KeyA': { normal: 'u', shift: 'U' },
+      'KeyS': { normal: 'i', shift: 'İ' },
+      'KeyD': { normal: 'e', shift: 'E' },
+      'KeyF': { normal: 'a', shift: 'A' },
+      'KeyG': { normal: 'ü', shift: 'Ü' },
+      'KeyH': { normal: 't', shift: 'T' },
+      'KeyJ': { normal: 'k', shift: 'K' },
+      'KeyK': { normal: 'm', shift: 'M' },
+      'KeyL': { normal: 'l', shift: 'L' },
+      'Semicolon': { normal: 'y', shift: 'Y' },
+      'Quote': { normal: 'ş', shift: 'Ş' },
+      'Backslash': { normal: 'x', shift: 'X' },
+
+      // 4. Sıra (Alt Sıra)
+      'IntlBackslash': { normal: '<', shift: '>' },
+      'KeyZ': { normal: 'j', shift: 'J' },
+      'KeyX': { normal: 'ö', shift: 'Ö' },
+      'KeyC': { normal: 'v', shift: 'V' },
+      'KeyV': { normal: 'c', shift: 'C' },
+      'KeyB': { normal: 'ç', shift: 'Ç' },
+      'KeyN': { normal: 'z', shift: 'Z' },
+      'KeyM': { normal: 's', shift: 'S' },
+      'Comma': { normal: 'b', shift: 'B' },
+      'Period': { normal: '.', shift: ':' },
+      'Slash': { normal: ',', shift: ';' },
+      'Space': { normal: ' ', shift: ' ' }
+    };
+
+    const CHAR_MAP = {
+      'q':'f', 'Q':'F', 'w':'g', 'W':'G', 'e':'ğ', 'E':'Ğ', 'r':'ı', 'R':'I',
+      't':'o', 'T':'O', 'y':'d', 'Y':'D', 'u':'r', 'U':'R', 'ı':'n', 'I':'N',
+      'i':'ş', 'İ':'Ş', 'o':'h', 'O':'H', 'p':'p', 'P':'P', 'ğ':'q', 'Ğ':'Q',
+      'ü':'w', 'Ü':'W', 'a':'u', 'A':'U', 's':'i', 'S':'İ', 'd':'e', 'D':'E',
+      'f':'a', 'F':'A', 'g':'ü', 'G':'Ü', 'h':'t', 'H':'T', 'j':'k', 'J':'K',
+      'k':'m', 'K':'M', 'l':'l', 'L':'L', 'ş':'y', 'Ş':'Y', 'z':'j', 'Z':'J',
+      'x':'ö', 'X':'Ö', 'c':'v', 'C':'V', 'v':'c', 'V':'C', 'b':'ç', 'B':'Ç',
+      'n':'z', 'N':'Z', 'm':'s', 'M':'S', 'ö':'b', 'Ö':'B', 'ç':'.', 'Ç':':',
+      ',':'x', ';':'X', '.':',', ':':';'
+    };
+
+    const textarea = document.getElementById('inputArea');
+    const copyBtn = document.getElementById('copyBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const soundToggleBtn = document.getElementById('soundToggleBtn');
+    const charCount = document.getElementById('charCount');
+
+    function updateCount() {
+      charCount.textContent = `${textarea.value.length} karakter`;
+    }
+
+    function insertText(char) {
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const text = textarea.value;
+
+      textarea.value = text.substring(0, start) + char + text.substring(end);
+      textarea.selectionStart = textarea.selectionEnd = start + char.length;
+      updateCount();
+    }
+
+    // Tuş basımı
+    textarea.addEventListener('keydown', (e) => {
+      if (isTimeUp) {
+        e.preventDefault();
+        return;
+      }
+
+      // Tuşa basıldığı an zamanlayıcıyı başlat
+      startTimerIfNeeded();
+
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+      if (['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Tab', 'Enter', 'Escape', 'Home', 'End'].includes(e.key)) {
+        playKeySound();
+        return;
+      }
+
+      const mapped = KEY_MAP[e.code];
+      if (mapped) {
+        e.preventDefault();
+        playKeySound();
+        const char = e.shiftKey ? mapped.shift : mapped.normal;
+        insertText(char);
+      } else if (CHAR_MAP[e.key]) {
+        e.preventDefault();
+        playKeySound();
+        insertText(CHAR_MAP[e.key]);
+      } else {
+        playKeySound();
+      }
+    });
+
+    textarea.addEventListener('input', updateCount);
+
+    // Ses Aç/Kapa
+    soundToggleBtn.addEventListener('click', () => {
+      soundEnabled = !soundEnabled;
+      soundToggleBtn.textContent = soundEnabled ? '🔊 Ses Açık' : '🔇 Ses Kapalı';
+      textarea.focus();
+    });
+
+    // Kopyala
+    copyBtn.addEventListener('click', async () => {
+      if (!textarea.value) return;
+      try {
+        await navigator.clipboard.writeText(textarea.value);
+        copyBtn.textContent = 'Kopyalandı!';
+        setTimeout(() => { copyBtn.textContent = 'Kopyala'; }, 1500);
+      } catch (err) {
+        textarea.select();
+        document.execCommand('copy');
+        copyBtn.textContent = 'Kopyalandı!';
+        setTimeout(() => { copyBtn.textContent = 'Kopyala'; }, 1500);
+      }
+    });
+
+    // Temizle & Sıfırla
+    clearBtn.addEventListener('click', () => {
+      textarea.value = '';
+      updateCount();
+      resetTimer();
+      textarea.focus();
+    });
+  </script>
+</body>
+</html>
